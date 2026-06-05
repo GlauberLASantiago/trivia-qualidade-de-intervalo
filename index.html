@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trivia de intervalos musicais</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.card{background:#fff;border-radius:12px;padding:24px 28px;border:1px solid #e5e5e5}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lbl{font-size:13px;color:#666;white-space:nowrap}
+.hint{font-size:13px;color:#111;font-weight:500;white-space:nowrap}
+button.play{font-size:13px;padding:5px 12px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#111;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap}
+button.play:hover{background:#f5f5f5}
+button.play.busy{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
+.choices{display:flex;gap:6px;flex-wrap:wrap}
+button.opt{font-size:13px;padding:5px 11px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#111;cursor:pointer;white-space:nowrap}
+button.opt:hover:not(:disabled){background:#f5f5f5}
+button.opt:disabled{cursor:default;opacity:.5}
+button.opt.ok{background:#d1fae5;color:#065f46;border-color:#6ee7b7;opacity:1}
+button.opt.fail{background:#fee2e2;color:#991b1b;border-color:#fca5a5;opacity:1}
+.result{font-size:13px;white-space:nowrap}
+.result.ok{color:#065f46}
+.result.fail{color:#991b1b}
+button.again{font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid #ddd;background:transparent;color:#666;cursor:pointer;white-space:nowrap}
+button.again:hover{background:#f5f5f5}
+button.share{font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid #ddd;background:transparent;color:#666;cursor:pointer;white-space:nowrap}
+button.share:hover{background:#f5f5f5}
+.toast{font-size:12px;color:#065f46;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="card"><div class="row" id="app"></div></div>
+<script>
+var INTERVALS=[{semis:0,family:'primeira',quality:'justa',choices:['justa']},{semis:1,family:'segunda',quality:'menor',choices:['menor','maior']},{semis:2,family:'segunda',quality:'maior',choices:['menor','maior']},{semis:3,family:'terça',quality:'menor',choices:['menor','maior']},{semis:4,family:'terça',quality:'maior',choices:['menor','maior']},{semis:5,family:'quarta',quality:'justa',choices:['justa','aumentada']},{semis:6,family:'quarta',quality:'aumentada',choices:['justa','aumentada']},{semis:6,family:'quinta',quality:'diminuta',choices:['diminuta','justa','aumentada']},{semis:7,family:'quinta',quality:'justa',choices:['diminuta','justa','aumentada']},{semis:8,family:'quinta',quality:'aumentada',choices:['diminuta','justa','aumentada']},{semis:8,family:'sexta',quality:'menor',choices:['menor','maior','aumentada']},{semis:9,family:'sexta',quality:'maior',choices:['menor','maior','aumentada']},{semis:10,family:'sexta',quality:'aumentada',choices:['menor','maior','aumentada']},{semis:10,family:'sétima',quality:'menor',choices:['menor','maior']},{semis:11,family:'sétima',quality:'maior',choices:['menor','maior']},{semis:12,family:'oitava',quality:'justa',choices:['justa']}];
+var FREQS=[261.63,277.18,293.66,311.13,329.63,349.23,369.99,392.00,415.30,440.00,466.16,493.88];
+var actx=null,current=null;
+function getCtx(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();return actx;}
+function playTone(freq,ac,off){var t=ac.currentTime+off,atk=0.01,dur=0.7;var car=ac.createOscillator(),mod=ac.createOscillator(),mG=ac.createGain(),aG=ac.createGain();car.type=mod.type='sine';car.frequency.setValueAtTime(freq,t);mod.frequency.setValueAtTime(freq*14,t);mG.gain.setValueAtTime(0,t);mG.gain.linearRampToValueAtTime(1200,t+atk);mG.gain.exponentialRampToValueAtTime(0.001,t+atk+1);aG.gain.setValueAtTime(0,t);aG.gain.linearRampToValueAtTime(0.25,t+atk);aG.gain.setValueAtTime(0.25,t+dur*0.5);aG.gain.exponentialRampToValueAtTime(0.001,t+dur);mod.connect(mG);mG.connect(car.frequency);car.connect(aG);aG.connect(ac.destination);mod.start(t);mod.stop(t+dur+0.1);car.start(t);car.stop(t+dur+0.1);}
+function shuffle(a){return[...a].sort(function(){return Math.random()-0.5;});}
+function newQuestion(auto){var idx=Math.floor(Math.random()*INTERVALS.length),iv=INTERVALS[idx],rf=FREQS[Math.floor(Math.random()*FREQS.length)];current={interval:iv,rootFreq:rf,topFreq:rf*Math.pow(2,iv.semis/12),choices:iv.choices.length===1?iv.choices:shuffle(iv.choices)};if(auto){render('playing');doPlay();}else render('idle');}
+function doPlay(){var ac=getCtx();playTone(current.rootFreq,ac,0);playTone(current.topFreq,ac,0.65);setTimeout(function(){render('ready');},1500);}
+function answer(c){render('answered',c);}
+function getShareHTML(){return document.documentElement.outerHTML;}
+function render(state,chosen,toast){
+  var app=document.getElementById('app');app.innerHTML='';
+  var lbl=document.createElement('span');lbl.className='lbl';lbl.textContent='Que qualidade de '+current.interval.family+' é essa?';app.appendChild(lbl);
+  var pb=document.createElement('button');pb.className='play'+(state==='playing'?' busy':'');pb.textContent=state==='playing'?'tocando…':'ouvir';
+  pb.onclick=function(){if(state==='playing')return;render('playing');doPlay();};app.appendChild(pb);
+  var od=document.createElement('div');od.className='choices';
+  current.choices.forEach(function(name){var o=document.createElement('button');o.className='opt';o.textContent=name;
+    if(state==='answered'){o.disabled=true;if(name===current.interval.quality)o.classList.add('ok');else if(name===chosen)o.classList.add('fail');}
+    else if(state!=='ready'){o.disabled=true;}
+    else{o.onclick=function(){answer(name);};}
+    od.appendChild(o);});
+  app.appendChild(od);
+  if(state==='answered'){
+    var r=document.createElement('span');r.className='result '+(chosen===current.interval.quality?'ok':'fail');
+    r.textContent=chosen===current.interval.quality?'✓ correto!':'✗ era '+current.interval.family+' '+current.interval.quality;app.appendChild(r);
+    var ag=document.createElement('button');ag.className='again';ag.textContent='outro →';ag.onclick=function(){newQuestion(true);};app.appendChild(ag);
+  }
+  var sh=document.createElement('button');sh.className='share';sh.textContent='compartilhar';
+  sh.onclick=function(){var blob=new Blob([getShareHTML()],{type:'text/html'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='trivia-intervalos.html';a.click();URL.revokeObjectURL(url);render(state,chosen,true);};
+  app.appendChild(sh);
+  if(toast){var tst=document.createElement('span');tst.className='toast';tst.textContent='arquivo baixado!';app.appendChild(tst);}
+}
+newQuestion(false);
+</script>
+</body>
+</html>
